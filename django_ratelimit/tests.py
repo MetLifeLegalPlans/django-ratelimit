@@ -4,10 +4,10 @@ from django.test import RequestFactory, TestCase
 from django.test.utils import override_settings
 from django.views.generic import View
 
-from ratelimit.decorators import ratelimit
-from ratelimit.exceptions import Ratelimited
-from ratelimit.mixins import RatelimitMixin
-from ratelimit.utils import is_ratelimited, _split_rate
+from django_ratelimit.decorators import django_ratelimit
+from django_ratelimit.exceptions import Ratelimited
+from django_ratelimit.mixins import RatelimitMixin
+from django_ratelimit.utils import is_django_ratelimited, _split_rate
 
 
 rf = RequestFactory()
@@ -44,7 +44,7 @@ class RatelimitTests(TestCase):
         cache.clear()
 
     def test_no_key(self):
-        @ratelimit(rate='1/m', block=True)
+        @django_ratelimit(rate='1/m', block=True)
         def view(request):
             return True
 
@@ -53,7 +53,7 @@ class RatelimitTests(TestCase):
             view(req)
 
     def test_ip(self):
-        @ratelimit(key='ip', rate='1/m', block=True)
+        @django_ratelimit(key='ip', rate='1/m', block=True)
         def view(request):
             return True
 
@@ -63,11 +63,11 @@ class RatelimitTests(TestCase):
             view(req)
 
     def test_block(self):
-        @ratelimit(key='ip', rate='1/m', block=True)
+        @django_ratelimit(key='ip', rate='1/m', block=True)
         def blocked(request):
             return request.limited
 
-        @ratelimit(key='ip', rate='1/m', block=False)
+        @django_ratelimit(key='ip', rate='1/m', block=False)
         def unblocked(request):
             return request.limited
 
@@ -83,11 +83,11 @@ class RatelimitTests(TestCase):
         post = rf.post('/')
         get = rf.get('/')
 
-        @ratelimit(key='ip', method='POST', rate='1/m', group='a')
+        @django_ratelimit(key='ip', method='POST', rate='1/m', group='a')
         def limit_post(request):
             return request.limited
 
-        @ratelimit(key='ip', method=['POST', 'GET'], rate='1/m', group='a')
+        @django_ratelimit(key='ip', method=['POST', 'GET'], rate='1/m', group='a')
         def limit_get(request):
             return request.limited
 
@@ -99,7 +99,7 @@ class RatelimitTests(TestCase):
         assert limit_get(get), 'Limit first GET.'
 
     def test_unsafe_methods(self):
-        @ratelimit(key='ip', method=ratelimit.UNSAFE, rate='0/m')
+        @django_ratelimit(key='ip', method=django_ratelimit.UNSAFE, rate='0/m')
         def limit_unsafe(request):
             return request.limited
 
@@ -127,7 +127,7 @@ class RatelimitTests(TestCase):
         req_a = rf.get('/', {'foo': 'a'})
         req_b = rf.get('/', {'foo': 'b'})
 
-        @ratelimit(key='get:foo', rate='1/m', method='GET')
+        @django_ratelimit(key='get:foo', rate='1/m', method='GET')
         def view(request):
             return request.limited
 
@@ -140,7 +140,7 @@ class RatelimitTests(TestCase):
         req_a = rf.post('/', {'foo': 'a'})
         req_b = rf.post('/', {'foo': 'b'})
 
-        @ratelimit(key='post:foo', rate='1/m')
+        @django_ratelimit(key='post:foo', rate='1/m')
         def view(request):
             return request.limited
 
@@ -153,8 +153,8 @@ class RatelimitTests(TestCase):
         req = rf.post('/')
         req.META['HTTP_X_REAL_IP'] = '1.2.3.4'
 
-        @ratelimit(key='header:x-real-ip', rate='1/m')
-        @ratelimit(key='header:x-missing-header', rate='1/m')
+        @django_ratelimit(key='header:x-real-ip', rate='1/m')
+        @django_ratelimit(key='header:x-missing-header', rate='1/m')
         def view(request):
             return request.limited
 
@@ -164,7 +164,7 @@ class RatelimitTests(TestCase):
     def test_rate(self):
         req = rf.post('/')
 
-        @ratelimit(key='ip', rate='2/m')
+        @django_ratelimit(key='ip', rate='2/m')
         def twice(request):
             return request.limited
 
@@ -177,7 +177,7 @@ class RatelimitTests(TestCase):
     def test_zero_rate(self):
         req = rf.post('/')
 
-        @ratelimit(key='ip', rate='0/m')
+        @django_ratelimit(key='ip', rate='0/m')
         def never(request):
             return request.limited
 
@@ -186,7 +186,7 @@ class RatelimitTests(TestCase):
     def test_none_rate(self):
         req = rf.post('/')
 
-        @ratelimit(key='ip', rate=None)
+        @django_ratelimit(key='ip', rate=None)
         def always(request):
             return request.limited
 
@@ -213,7 +213,7 @@ class RatelimitTests(TestCase):
                 return (2, 60)
             return (1, 60)
 
-        @ratelimit(key='user_or_ip', rate=get_rate)
+        @django_ratelimit(key='user_or_ip', rate=get_rate)
         def view(request):
             return request.limited
 
@@ -229,7 +229,7 @@ class RatelimitTests(TestCase):
 
         get_rate = lambda g, r: None if r.never_limit else '1/m'
 
-        @ratelimit(key='ip', rate=get_rate)
+        @django_ratelimit(key='ip', rate=get_rate)
         def view(request):
             return request.limited
 
@@ -253,7 +253,7 @@ class RatelimitTests(TestCase):
                 return '1/m'
             return '0/m'
 
-        @ratelimit(key='ip', rate=get_rate)
+        @django_ratelimit(key='ip', rate=get_rate)
         def view(request):
             return request.limited
 
@@ -268,7 +268,7 @@ class RatelimitTests(TestCase):
     def test_bad_cache(self):
         """The RATELIMIT_USE_CACHE setting works if the cache exists."""
 
-        @ratelimit(key='ip', rate='1/m')
+        @django_ratelimit(key='ip', rate='1/m')
         def view(request):
             return request
 
@@ -280,7 +280,7 @@ class RatelimitTests(TestCase):
     @override_settings(RATELIMIT_USE_CACHE='connection-errors')
     def test_cache_connection_error(self):
 
-        @ratelimit(key='ip', rate='1/m')
+        @django_ratelimit(key='ip', rate='1/m')
         def view(request):
             return request
 
@@ -290,7 +290,7 @@ class RatelimitTests(TestCase):
     def test_user_or_ip(self):
         """Allow custom functions to set cache keys."""
 
-        @ratelimit(key='user_or_ip', rate='1/m', block=False)
+        @django_ratelimit(key='user_or_ip', rate='1/m', block=False)
         def view(request):
             return request.limited
 
@@ -307,7 +307,7 @@ class RatelimitTests(TestCase):
         assert view(auth), 'Second authenticated is limited.'
 
     def test_key_path(self):
-        @ratelimit(key='ratelimit.tests.mykey', rate='1/m')
+        @django_ratelimit(key='django_ratelimit.tests.mykey', rate='1/m')
         def view(request):
             return request.limited
 
@@ -316,7 +316,7 @@ class RatelimitTests(TestCase):
         assert view(req)
 
     def test_callable_key(self):
-        @ratelimit(key=mykey, rate='1/m')
+        @django_ratelimit(key=mykey, rate='1/m')
         def view(request):
             return request.limited
 
@@ -325,11 +325,11 @@ class RatelimitTests(TestCase):
         assert view(req)
 
     def test_stacked_decorator(self):
-        """Allow @ratelimit to be stacked."""
+        """Allow @django_ratelimit to be stacked."""
         # Put the shorter one first and make sure the second one doesn't
         # reset request.limited back to False.
-        @ratelimit(rate='1/m', block=False, key=lambda x, y: 'min')
-        @ratelimit(rate='10/d', block=False, key=lambda x, y: 'day')
+        @django_ratelimit(rate='1/m', block=False, key=lambda x, y: 'min')
+        @django_ratelimit(rate='10/d', block=False, key=lambda x, y: 'day')
         def view(request):
             return request.limited
 
@@ -339,8 +339,8 @@ class RatelimitTests(TestCase):
 
     def test_stacked_methods(self):
         """Different methods should result in different counts."""
-        @ratelimit(rate='1/m', key='ip', method='GET')
-        @ratelimit(rate='1/m', key='ip', method='POST')
+        @django_ratelimit(rate='1/m', key='ip', method='GET')
+        @django_ratelimit(rate='1/m', key='ip', method='POST')
         def view(request):
             return request.limited
 
@@ -354,11 +354,11 @@ class RatelimitTests(TestCase):
 
     def test_sorted_methods(self):
         """Order of the methods shouldn't matter."""
-        @ratelimit(rate='1/m', key='ip', method=['GET', 'POST'], group='a')
+        @django_ratelimit(rate='1/m', key='ip', method=['GET', 'POST'], group='a')
         def get_post(request):
             return request.limited
 
-        @ratelimit(rate='1/m', key='ip', method=['POST', 'GET'], group='a')
+        @django_ratelimit(rate='1/m', key='ip', method=['POST', 'GET'], group='a')
         def post_get(request):
             return request.limited
 
@@ -366,18 +366,18 @@ class RatelimitTests(TestCase):
         assert not get_post(req)
         assert post_get(req)
 
-    def test_is_ratelimited(self):
+    def test_is_django_ratelimited(self):
         def get_key(group, request):
-            return 'test_is_ratelimited_key'
+            return 'test_is_django_ratelimited_key'
 
         def not_increment(request):
-            return is_ratelimited(request, increment=False,
-                                  method=is_ratelimited.ALL, key=get_key,
+            return is_django_ratelimited(request, increment=False,
+                                  method=is_django_ratelimited.ALL, key=get_key,
                                   rate='1/m', group='a')
 
         def do_increment(request):
-            return is_ratelimited(request, increment=True,
-                                  method=is_ratelimited.ALL, key=get_key,
+            return is_django_ratelimited(request, increment=True,
+                                  method=is_django_ratelimited.ALL, key=get_key,
                                   rate='1/m', group='a')
 
         req = rf.get('/')
@@ -397,26 +397,26 @@ class RatelimitTests(TestCase):
         assert not_increment(req), 'Request should be rate limited.'
 
     @override_settings(RATELIMIT_USE_CACHE='connection-errors')
-    def test_is_ratelimited_cache_connection_error_without_increment(self):
+    def test_is_django_ratelimited_cache_connection_error_without_increment(self):
         def get_key(group, request):
-            return 'test_is_ratelimited_key'
+            return 'test_is_django_ratelimited_key'
 
         def not_increment(request):
-            return is_ratelimited(request, increment=False,
-                                  method=is_ratelimited.ALL, key=get_key,
+            return is_django_ratelimited(request, increment=False,
+                                  method=is_django_ratelimited.ALL, key=get_key,
                                   rate='1/m', group='a')
 
         req = rf.get('/')
         assert not not_increment(req)
 
     @override_settings(RATELIMIT_USE_CACHE='connection-errors')
-    def test_is_ratelimited_cache_connection_error_with_increment(self):
+    def test_is_django_ratelimited_cache_connection_error_with_increment(self):
         def get_key(group, request):
-            return 'test_is_ratelimited_key'
+            return 'test_is_django_ratelimited_key'
 
         def do_increment(request):
-            return is_ratelimited(request, increment=True,
-                                  method=is_ratelimited.ALL, key=get_key,
+            return is_django_ratelimited(request, increment=True,
+                                  method=is_django_ratelimited.ALL, key=get_key,
                                   rate='1/m', group='a')
 
         req = rf.get('/')
@@ -424,13 +424,13 @@ class RatelimitTests(TestCase):
         assert req.limited is False
 
     @override_settings(RATELIMIT_USE_CACHE='connection-errors-redis')
-    def test_is_ratelimited_cache_connection_error_with_increment_redis(self):
+    def test_is_django_ratelimited_cache_connection_error_with_increment_redis(self):
         def get_key(group, request):
-            return 'test_is_ratelimited_key'
+            return 'test_is_django_ratelimited_key'
 
         def do_increment(request):
-            return is_ratelimited(request, increment=True,
-                                  method=is_ratelimited.ALL, key=get_key,
+            return is_django_ratelimited(request, increment=True,
+                                  method=is_django_ratelimited.ALL, key=get_key,
                                   rate='1/m', group='a')
 
         req = rf.get('/')
@@ -439,7 +439,7 @@ class RatelimitTests(TestCase):
 
     @override_settings(RATELIMIT_USE_CACHE='instant-expiration')
     def test_cache_timeout(self):
-        @ratelimit(key='ip', rate='1/m', block=True)
+        @django_ratelimit(key='ip', rate='1/m', block=True)
         def view(request):
             return True
 
@@ -457,10 +457,10 @@ class RatelimitCBVTests(TestCase):
     def test_limit_ip(self):
 
         class RLView(RatelimitMixin, View):
-            ratelimit_key = 'ip'
-            ratelimit_method = ratelimit.ALL
-            ratelimit_rate = '1/m'
-            ratelimit_block = True
+            django_ratelimit_key = 'ip'
+            django_ratelimit_method = django_ratelimit.ALL
+            django_ratelimit_rate = '1/m'
+            django_ratelimit_block = True
 
         rlview = RLView.as_view()
 
@@ -472,21 +472,21 @@ class RatelimitCBVTests(TestCase):
     def test_block(self):
 
         class BlockedView(RatelimitMixin, View):
-            ratelimit_group = 'cbv:block'
-            ratelimit_key = 'ip'
-            ratelimit_method = ratelimit.ALL
-            ratelimit_rate = '1/m'
-            ratelimit_block = True
+            django_ratelimit_group = 'cbv:block'
+            django_ratelimit_key = 'ip'
+            django_ratelimit_method = django_ratelimit.ALL
+            django_ratelimit_rate = '1/m'
+            django_ratelimit_block = True
 
             def get(self, request, *args, **kwargs):
                 return request.limited
 
         class UnBlockedView(RatelimitMixin, View):
-            ratelimit_group = 'cbv:block'
-            ratelimit_key = 'ip'
-            ratelimit_method = ratelimit.ALL
-            ratelimit_rate = '1/m'
-            ratelimit_block = False
+            django_ratelimit_group = 'cbv:block'
+            django_ratelimit_key = 'ip'
+            django_ratelimit_method = django_ratelimit.ALL
+            django_ratelimit_rate = '1/m'
+            django_ratelimit_block = False
 
             def get(self, request, *args, **kwargs):
                 return request.limited
@@ -507,20 +507,20 @@ class RatelimitCBVTests(TestCase):
         get = rf.get('/')
 
         class LimitPostView(RatelimitMixin, View):
-            ratelimit_group = 'cbv:method'
-            ratelimit_key = 'ip'
-            ratelimit_method = ['POST']
-            ratelimit_rate = '1/m'
+            django_ratelimit_group = 'cbv:method'
+            django_ratelimit_key = 'ip'
+            django_ratelimit_method = ['POST']
+            django_ratelimit_rate = '1/m'
 
             def post(self, request, *args, **kwargs):
                 return request.limited
             get = post
 
         class LimitGetView(RatelimitMixin, View):
-            ratelimit_group = 'cbv:method'
-            ratelimit_key = 'ip'
-            ratelimit_method = ['POST', 'GET']
-            ratelimit_rate = '1/m'
+            django_ratelimit_group = 'cbv:method'
+            django_ratelimit_key = 'ip'
+            django_ratelimit_method = ['POST', 'GET']
+            django_ratelimit_rate = '1/m'
 
             def post(self, request, *args, **kwargs):
                 return request.limited
@@ -540,8 +540,8 @@ class RatelimitCBVTests(TestCase):
         req = rf.post('/')
 
         class TwiceView(RatelimitMixin, View):
-            ratelimit_key = 'ip'
-            ratelimit_rate = '2/m'
+            django_ratelimit_key = 'ip'
+            django_ratelimit_rate = '2/m'
 
             def post(self, request, *args, **kwargs):
                 return request.limited
@@ -559,7 +559,7 @@ class RatelimitCBVTests(TestCase):
         self.skipTest('I do not know why this fails when the other works.')
 
         class BadCacheView(RatelimitMixin, View):
-            ratelimit_key = 'ip'
+            django_ratelimit_key = 'ip'
 
             def post(self, request, *args, **kwargs):
                 return request
@@ -580,9 +580,9 @@ class RatelimitCBVTests(TestCase):
             return 'uip:%s' % req.META['REMOTE_ADDR']
 
         class KeysView(RatelimitMixin, View):
-            ratelimit_key = user_or_ip
-            ratelimit_block = False
-            ratelimit_rate = '1/m'
+            django_ratelimit_key = user_or_ip
+            django_ratelimit_block = False
+            django_ratelimit_rate = '1/m'
 
             def post(self, request, *args, **kwargs):
                 return request.limited
@@ -603,7 +603,7 @@ class RatelimitCBVTests(TestCase):
 
     def test_method_decorator(self):
         class TestView(View):
-            @ratelimit(key='ip', rate='1/m', block=False)
+            @django_ratelimit(key='ip', rate='1/m', block=False)
             def post(self, request):
                 return request.limited
 

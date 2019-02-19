@@ -10,7 +10,7 @@ except ImportError:
 
 from django.conf import settings
 
-from ratelimit.exceptions import Ratelimited
+from django_ratelimit.exceptions import Ratelimited
 
 
 class RatelimitMiddleware(MiddlewareMixin):

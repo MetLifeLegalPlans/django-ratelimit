@@ -8,10 +8,10 @@ from django.conf import settings
 from django.core.cache import caches
 from django.core.exceptions import ImproperlyConfigured
 
-from ratelimit import ALL, UNSAFE
+from django_ratelimit import ALL, UNSAFE
 
 
-__all__ = ['is_ratelimited']
+__all__ = ['is_django_ratelimited']
 
 _PERIODS = {
     's': 1,
@@ -100,7 +100,7 @@ def _make_cache_key(group, rate, value, methods):
     return prefix + hashlib.md5(u''.join(parts).encode('utf-8')).hexdigest()
 
 
-def is_ratelimited(request, group=None, fn=None, key=None, rate=None,
+def is_django_ratelimited(request, group=None, fn=None, key=None, rate=None,
                    method=ALL, increment=False):
     if group is None:
         if hasattr(fn, '__self__'):
@@ -155,7 +155,7 @@ def get_usage_count(request, group=None, fn=None, key=None, rate=None,
     elif ':' in key:
         accessor, k = key.split(':', 1)
         if accessor not in _ACCESSOR_KEYS:
-            raise ImproperlyConfigured('Unknown ratelimit key: %s' % key)
+            raise ImproperlyConfigured('Unknown django_ratelimit key: %s' % key)
         value = _ACCESSOR_KEYS[accessor](request, k)
     elif '.' in key:
         mod, attr = key.rsplit('.', 1)
@@ -163,7 +163,7 @@ def get_usage_count(request, group=None, fn=None, key=None, rate=None,
         value = keyfn(group, request)
     else:
         raise ImproperlyConfigured(
-            'Could not understand ratelimit key: %s' % key)
+            'Could not understand django_ratelimit key: %s' % key)
 
     cache_key = _make_cache_key(group, rate, value, method)
     time_left = _get_window(value, period) - int(time.time())
@@ -182,5 +182,5 @@ def get_usage_count(request, group=None, fn=None, key=None, rate=None,
     return {'count': count, 'limit': limit, 'time_left': time_left}
 
 
-is_ratelimited.ALL = ALL
-is_ratelimited.UNSAFE = UNSAFE
+is_django_ratelimited.ALL = ALL
+is_django_ratelimited.UNSAFE = UNSAFE
